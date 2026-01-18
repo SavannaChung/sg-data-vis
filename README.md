@@ -60,6 +60,11 @@ pip install -r requirements_32bit.txt
 pip install -r requirements_64bit.txt
 ```
 
+4.) Update your branch with the main branch changes 
+```bash
+git pull https://github.com/SavannaChung/sg-data-vis.git
+```
+
 
 ## Usage
 Run the main script to generate plots in the sg-data-vis folder:
