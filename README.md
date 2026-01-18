@@ -50,7 +50,45 @@ source data_vis/bin/activate      # macOS / Linux (codespace is running in Linux
 ```
 
 3.) Install dependencies
-- if you have a 32-bit environment
+- For a 32-bit environment
+```bash
+pip install -r requirements_32bit.txt
+```
+  
+- For a 64-bit environment (ie. in codespace)
+```bash
+pip install -r requirements_64bit.txt
+```
+
+
+## Usage
+Run the main script to generate plots in the sg-data-vis folder:
+```bash
+python code/main.py
+```
+
+## Contributing
+
+1.) Fork the repository
+2.) Create a feature branch 
+```bash
+git checkout -b feature-name
+```
+3.) Commit your changes 
+```bash
+git commit -m "Add new feature"
+```
+4.) Push to branch 
+```bash
+git push origin feature-name
+```
+5.) Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License – see LICENSE
+ for details.
+
 
 
 
