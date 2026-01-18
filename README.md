@@ -29,4 +29,6 @@ A project to develop a dashboard for spot grid data visualisation
 ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
 │
 │
-└── requirements.txt   <- required packages with versions"# sg-data-vis" 
+├── requirements_32bit.txt   <- required packages when you set up a 32-bit env
+│
+└── requirements_64bit.txt   <- required packages when you set up a 64-bit env in codespace
