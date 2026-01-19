@@ -44,9 +44,14 @@ cd sg-data-vis
 
 2.) Set  up a virtual environment
 ```bash
+# if you are using window and want to set up a virtual environment in your local device using conda,
+conda create --name data_vis python=3.12
+conda activate data_vis
+
+# venv can be used in both window and linux
 python -m venv data_vis
 source data_vis/bin/activate      # macOS / Linux (codespace is running in Linux)
-# data_vis\Scripts\activate       # Windows (you may prefer to set up a virtual environment in conda if you are running in windows.)
+# data_vis\Scripts\activate       # Windows
 ```
 
 3.) Install dependencies
