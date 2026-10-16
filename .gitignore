@@ -110,6 +110,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+32bit.venv/
+64bit.venv/
 
 # Spyder project settings
 .spyderproject
