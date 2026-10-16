@@ -1,39 +1,135 @@
-import pandas as pd
+from dash import Dash, Input, Output
 
+import dash_layout as dsh
+import figure as figs
+import database as data_call
 
+# =============
+# Loading data
+# =============
+fwhm_df = data_call.load_fwhm_data()
+ref_df = data_call.load_reference_data()
 
-import database as db
-import figure as fg
+# =================
+# dropdown options
+# =================
+machine_options = dsh.make_options(sorted(fwhm_df["MachineName"].dropna().unique()))
+device_options = dsh.make_options(sorted(fwhm_df["Device"].dropna().unique()))
+energy_options = dsh.make_options(sorted(fwhm_df["Energy"].dropna().unique()))
+gantry_angle_options = dsh.make_options(sorted(fwhm_df["Gantry Angle"].dropna().unique()))
 
-database_path = r"O:\protons\Work in Progress\KC\Access\dose_lineariy_form\existing_db\_AssetsDatabase_be_current.accdb"
+fwhm_options = [
+    {"label": "Average FWHM", "value": "ave_fwhm"},
+    {"label": "Horizontal FWHM", "value": "hor_fwhm"},
+    {"label": "Vertical FWHM", "value": "vert_fwhm"},
+    {"label": "BLTR diagonal FWHM", "value": "bltr_fwhm"},
+    {"label": "TLBR diagonal FWHM", "value": "tlbr_fwhm"},
+]
 
-def main():
+# =========
+# Dash app
+# =========
 
-    df = db.fetch_db(DATABASE_DIR = database_path,table = "SpotPositionResults")
+app = Dash(__name__)
+server = app.server
 
-    # convert adate to datetime
-    df['adate'] = pd.to_datetime(df['adate'])
-    
-    # Only keep useful columns
-    sub_df = df[["adate",	"machinename", 	"energy", "device", "gantry angle", "spot", "x-pos", "y-pos"]].copy()
+app.layout = dsh.app_layout(fwhm_df,
+                            machine_options, device_options, energy_options, gantry_angle_options, fwhm_options)
 
-    # calculate abs shift
-    pred_xrv4000 = {'Top-Top-Left': [-125, -175], 'Top-Top-Centre': [0, -175], 'Top-Top-Right': [125, -175], \
-                'Top-Left': [-125, -125], 'Top-Centre':[0, -125], 'Top-Right':[125, -125], \
-                'Left': [-125, 0], 'Centre':[0, 0], 'Right':[125, 0], \
-                'Bottom-Left': [-125, 125], 'Bottom-Centre':[0, 125], 'Bottom-Right':[125, 125], \
-                'Bottom-Bottom-Left': [-125, 175], 'Bottom-Bottom-Centre': [0, 175], 'Bottom-Bottom-Right': [125, 175]}
+# ==========================
+# Sidebar collapse callback
+# ==========================
 
-    sub_df['px_pos'] = sub_df['spot'].map(lambda s: pred_xrv4000[s][0] if s in pred_xrv4000 else None)
-    sub_df['py_pos'] = sub_df['spot'].map(lambda s: pred_xrv4000[s][1] if s in pred_xrv4000 else None)
+@app.callback(
+    Output("app-shell", "style"),
+    Output("sidebar", "style"),
+    Output("sidebar-content", "style"),
+    Output("toggle-sidebar", "children"),
+    Input("toggle-sidebar", "n_clicks"),
+)
+def toggle_sidebar(n_clicks):
+    """
+    Collapse or expand the left filter panel.
+    """
 
-    sub_df['abs_xpos'] = sub_df["x-pos"] - sub_df["px_pos"]
-    sub_df['abs_ypos'] = sub_df["y-pos"] - sub_df["py_pos"]
+    collapsed = bool(n_clicks and n_clicks % 2 == 1)
 
+    if collapsed:
+        return (
+            dsh.APP_STYLE_COLLAPSED,
+            dsh.SIDEBAR_STYLE_COLLAPSED,
+            {"display": "none"},
+            "▶",
+        )
 
-    # plot the abs shift as a function of time
-    fig = fg.plotly_spot_position(sub_df, "abs_ypos", "Gantry 4", "XRV-4000", 70, 0, 24)
+    return (
+        dsh.APP_STYLE_OPEN,
+        dsh.SIDEBAR_STYLE_OPEN,
+        {"display": "block"},
+        "◀",
+    )
 
+# =====================
+# Plot update callback
+# =====================
 
-if __name__ == "__main__":
-    main()
+@app.callback(
+    Output("spot-size-graph", "figure"),
+    Input("gantry-dropdown", "value"),
+    Input("device-dropdown", "value"),
+    Input("energy-dropdown", "value"),
+    Input("gantry-angle-dropdown", "value"),
+    Input("months-input", "value"),
+    Input("fwhm-column-dropdown", "value"),
+    Input("ref-source-dropdown", "value"),
+)
+def update_spot_size_plot(gantry, device, energy, gantry_angle, n_months, fwhm_col, ref_source):
+    """
+    Update the spot-size figure from the sidebar filters.
+    """
+
+    if not gantry or not device:
+        return dsh.blank_figure("Select a gantry and device.")
+
+    if not energy:
+        return dsh.blank_figure("Select at least one energy.")
+
+    if not gantry_angle:
+        return dsh.blank_figure("Select at least one gantry angle.")
+
+    if n_months is None:
+        n_months = 12
+
+    fig = figs.plotly_fwhm_spot_matrix(
+        df=fwhm_df,
+        gantry=gantry,
+        device=device,
+        energy=energy,
+        gantry_angle=gantry_angle,
+        n_months=int(n_months),
+        fwhm_col=fwhm_col,
+        ref_df=ref_df,
+        ref_source=ref_source,
+        show=False,
+    )
+
+    if fig is None:
+        return dsh.blank_figure("No data after filtering.")
+
+    # Keep sizing controlled by Dash rather than a fixed Plotly width.
+    fig.update_layout(
+        autosize=True,
+        margin=dict(l=35, r=205, t=95, b=55),
+    )
+
+    return fig
+
+# ========
+# Run app
+# ========
+
+app.run(
+    debug=False,
+    port=8050,
+    use_reloader=False,
+)
