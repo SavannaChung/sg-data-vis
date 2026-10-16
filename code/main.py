@@ -1,135 +1,116 @@
-from dash import Dash, Input, Output
+"""Dash entry point. Excel-export loading is temporary; database.py is deferred.
 
-import dash_layout as dsh
-import figure as figs
-import database as data_call
+From the repository root run: python code/main.py
+"""
+import warnings
+import pandas as pd
+from dash import Dash
 
-# =============
-# Loading data
-# =============
-fwhm_df = data_call.load_fwhm_data()
-ref_df = data_call.load_reference_data()
+import constants as cfg
+import layout as ui
+from callbacks import register_callbacks
 
-# =================
-# dropdown options
-# =================
-machine_options = dsh.make_options(sorted(fwhm_df["MachineName"].dropna().unique()))
-device_options = dsh.make_options(sorted(fwhm_df["Device"].dropna().unique()))
-energy_options = dsh.make_options(sorted(fwhm_df["Energy"].dropna().unique()))
-gantry_angle_options = dsh.make_options(sorted(fwhm_df["Gantry Angle"].dropna().unique()))
 
-fwhm_options = [
-    {"label": "Average FWHM", "value": "ave_fwhm"},
-    {"label": "Horizontal FWHM", "value": "hor_fwhm"},
-    {"label": "Vertical FWHM", "value": "vert_fwhm"},
-    {"label": "BLTR diagonal FWHM", "value": "bltr_fwhm"},
-    {"label": "TLBR diagonal FWHM", "value": "tlbr_fwhm"},
-]
+REQUIRED_BASE_COLUMNS = {"ADate", "MachineName", "Device", "Energy", "Gantry Angle", "Spot"}
 
-# =========
-# Dash app
-# =========
 
-app = Dash(__name__)
-server = app.server
+def load_excel_data():
+    if not cfg.QA_DATA_PATH.is_file():
+        raise FileNotFoundError(f"Cannot find QA workbook: {cfg.QA_DATA_PATH}")
+    df = pd.read_excel(cfg.QA_DATA_PATH)
+    missing = REQUIRED_BASE_COLUMNS - set(df.columns)
+    if missing:
+        raise ValueError(f"QA workbook is missing columns: {sorted(missing)}")
 
-app.layout = dsh.app_layout(fwhm_df,
-                            machine_options, device_options, energy_options, gantry_angle_options, fwhm_options)
+    df["ADate"] = pd.to_datetime(df["ADate"], errors="coerce")
+    for col in ("MachineName", "Device", "Spot"):
+        df[col] = df[col].astype("string").str.strip()
+    for col in ("Energy", "Gantry Angle"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    for col in set(cfg.PARAMETER_LABELS) | {"x-pos", "y-pos", "px_pos", "py_pos"} | {
+        x for pair in cfg.GRADIENT_PAIRS.values() for x in pair
+    }:
+        if col in df:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
-# ==========================
-# Sidebar collapse callback
-# ==========================
+    # Ref_RS0_Dist0.xlsx is the sigma-reference schema expected by the
+    # team's matrix and 2x2 time-series functions.
+    sigma_ref_df = pd.read_excel(cfg.REF_DATA_PATH) if cfg.REF_DATA_PATH.is_file() else None
+    if sigma_ref_df is not None:
+        required_ref = {"source", "gantry", "energy", "x_stddev", "y_stddev"}
+        if not required_ref.issubset(sigma_ref_df.columns):
+            warnings.warn("Sigma reference workbook schema not compatible with team functions; tolerance lines disabled")
+            sigma_ref_df = None
 
-@app.callback(
-    Output("app-shell", "style"),
-    Output("sidebar", "style"),
-    Output("sidebar-content", "style"),
-    Output("toggle-sidebar", "children"),
-    Input("toggle-sidebar", "n_clicks"),
-)
-def toggle_sidebar(n_clicks):
+    # Separate direct-FWHM reference schema used in the pasted notebook cells.
+    direct_ref_df = (pd.read_excel(cfg.BASELINE_REF_PATH, sheet_name="summary", usecols="A:E")
+                     if cfg.BASELINE_REF_PATH.is_file() else None)
+    if direct_ref_df is not None:
+        needed = {"data_type", "gantry", "gantry_angle", "energy", "fwhm"}
+        if not needed.issubset(direct_ref_df.columns):
+            warnings.warn("Baseline FWHM workbook schema not compatible; direct reference disabled")
+            direct_ref_df = None
+    return df, sigma_ref_df, direct_ref_df
+
+
+def prepare_qa_data(df):
+    """Prepare the three team-required measurement groups without fake data.
+
+    Position data are only computed if real expected coordinates are provided
+    in the workbook or in EXPECTED_SPOT_COORDS. A Centre offset must be matched
+    within the same date, gantry, device, energy and gantry angle.
     """
-    Collapse or expand the left filter panel.
-    """
+    df = df.copy()
+    fwhm_cols = list(cfg.FWHM_ORIENTATIONS.values())
+    if all(c in df.columns for c in fwhm_cols):
+        df["ave_fwhm"] = df[fwhm_cols].mean(axis=1)
 
-    collapsed = bool(n_clicks and n_clicks % 2 == 1)
+    for ratio_col, (rt, lt) in cfg.GRADIENT_PAIRS.items():
+        if rt in df.columns and lt in df.columns:
+            df[ratio_col] = (df[rt] / df[lt]).replace([float("inf"), -float("inf")], float("nan"))
 
-    if collapsed:
-        return (
-            dsh.APP_STYLE_COLLAPSED,
-            dsh.SIDEBAR_STYLE_COLLAPSED,
-            {"display": "none"},
-            "▶",
-        )
+    if not {"abs_xpos", "abs_ypos"}.issubset(df.columns):
+        if {"px_pos", "py_pos", "x-pos", "y-pos"}.issubset(df.columns):
+            df["abs_xpos"] = df["x-pos"] - df["px_pos"]
+            df["abs_ypos"] = df["y-pos"] - df["py_pos"]
+        elif {"x-pos", "y-pos"}.issubset(df.columns):
+            # Device-specific coordinates may be filled in constants.py.
+            expected = {
+                (dev, spot): xy
+                for dev, mapping in cfg.EXPECTED_SPOT_COORDS.items()
+                for spot, xy in mapping.items()
+            }
+            keys = list(zip(df["Device"], df["Spot"]))
+            nominal = [expected.get(key, (float("nan"), float("nan"))) for key in keys]
+            df["px_pos"] = [xy[0] for xy in nominal]
+            df["py_pos"] = [xy[1] for xy in nominal]
+            df["abs_xpos"] = df["x-pos"] - df["px_pos"]
+            df["abs_ypos"] = df["y-pos"] - df["py_pos"]
 
-    return (
-        dsh.APP_STYLE_OPEN,
-        dsh.SIDEBAR_STYLE_OPEN,
-        {"display": "block"},
-        "◀",
-    )
+    if {"abs_xpos", "abs_ypos"}.issubset(df.columns) and not {
+        "rel_xpos", "rel_ypos"}.issubset(df.columns):
+        grouping = ["ADate", "MachineName", "Device", "Energy", "Gantry Angle"]
+        # Unlike the pasted notebook's Date/Energy-only map, this avoids mixing
+        # Centre readings from different gantries/angles/devices.
+        centre = (df.loc[df["Spot"] == "Centre", grouping + ["abs_xpos", "abs_ypos"]]
+                    .groupby(grouping, as_index=False)[["abs_xpos", "abs_ypos"]].mean()
+                    .rename(columns={"abs_xpos": "centre_abs_xpos", "abs_ypos": "centre_abs_ypos"}))
+        df = df.merge(centre, on=grouping, how="left", validate="many_to_one")
+        df["rel_xpos"] = df["abs_xpos"] - df["centre_abs_xpos"]
+        df["rel_ypos"] = df["abs_ypos"] - df["centre_abs_ypos"]
+    return df
 
-# =====================
-# Plot update callback
-# =====================
 
-@app.callback(
-    Output("spot-size-graph", "figure"),
-    Input("gantry-dropdown", "value"),
-    Input("device-dropdown", "value"),
-    Input("energy-dropdown", "value"),
-    Input("gantry-angle-dropdown", "value"),
-    Input("months-input", "value"),
-    Input("fwhm-column-dropdown", "value"),
-    Input("ref-source-dropdown", "value"),
-)
-def update_spot_size_plot(gantry, device, energy, gantry_angle, n_months, fwhm_col, ref_source):
-    """
-    Update the spot-size figure from the sidebar filters.
-    """
+def create_app():
+    raw_df, sigma_ref_df, direct_ref_df = load_excel_data()
+    qa_df = prepare_qa_data(raw_df)
+    app = Dash(__name__)
+    app.title = "Spot Grid QA"
+    app.layout = ui.app_layout(qa_df, sigma_ref_df, direct_ref_df)
+    register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df)
+    return app
 
-    if not gantry or not device:
-        return dsh.blank_figure("Select a gantry and device.")
 
-    if not energy:
-        return dsh.blank_figure("Select at least one energy.")
-
-    if not gantry_angle:
-        return dsh.blank_figure("Select at least one gantry angle.")
-
-    if n_months is None:
-        n_months = 12
-
-    fig = figs.plotly_fwhm_spot_matrix(
-        df=fwhm_df,
-        gantry=gantry,
-        device=device,
-        energy=energy,
-        gantry_angle=gantry_angle,
-        n_months=int(n_months),
-        fwhm_col=fwhm_col,
-        ref_df=ref_df,
-        ref_source=ref_source,
-        show=False,
-    )
-
-    if fig is None:
-        return dsh.blank_figure("No data after filtering.")
-
-    # Keep sizing controlled by Dash rather than a fixed Plotly width.
-    fig.update_layout(
-        autosize=True,
-        margin=dict(l=35, r=205, t=95, b=55),
-    )
-
-    return fig
-
-# ========
-# Run app
-# ========
-
-app.run(
-    debug=False,
-    port=8050,
-    use_reloader=False,
-)
+if __name__ == "__main__":
+    app = create_app()
+    app.run(debug=False, port=8050, use_reloader=False)
