@@ -144,16 +144,24 @@ SUBPLOT_HORIZONTAL_SPACING = 0.025
 SUBPLOT_VERTICAL_SPACING = {3: 0.06, 5: 0.04}
 TWO_BY_TWO_SPACING = dict(horizontal_spacing=0.08, vertical_spacing=0.13)
 
-# Dash 4 native theme: do not override --Dash-* variables or force a custom palette.
-# Plot colours above remain separate scientific/plot conventions.
+# Dash 4 UI theme accent: the more blue-violet Plotly colour, not pinkish purple.
+# Scientific trace colours are intentionally unchanged.
+UI_ACCENT_COLOUR = "#636EFA"
+THEME_TEMPLATES = {"light": "plotly_white", "dark": "plotly_dark"}
+THEME_FIGURE_COLOURS = {
+    "light": {"paper": "#ffffff", "plot": "#ffffff", "text": "#242424"},
+    "dark": {"paper": "#1c2330", "plot": "#1c2330", "text": "#e9eef9"},
+}
+
 APP_STYLE_OPEN = dict(display="grid", gridTemplateColumns="284px minmax(0,1fr)",
                       height="100vh", maxHeight="100vh", width="100%",
-                      minHeight="0", fontFamily="system-ui, sans-serif", overflow="hidden")
+                      minHeight="0", fontFamily="system-ui, sans-serif", overflow="hidden",
+                      **{"--qa-accent": UI_ACCENT_COLOUR})
 APP_STYLE_COLLAPSED = dict(APP_STYLE_OPEN, gridTemplateColumns="50px minmax(0,1fr)")
 # The sidebar and chart region scroll independently inside the fixed-height app shell.
 SIDEBAR_STYLE_OPEN = dict(width="100%", minWidth="0", boxSizing="border-box",
                           padding="16px",
-                          backgroundColor="var(--Dash-Fill-Inverse-Strong, white)",
+                          backgroundColor="var(--qa-sidebar-bg, white)",
                           color="var(--Dash-Text-Primary, #242424)",
                           height="100vh", minHeight="0", overflowY="auto",
                           overscrollBehaviorY="contain", overflowX="hidden",
@@ -161,7 +169,7 @@ SIDEBAR_STYLE_OPEN = dict(width="100%", minWidth="0", boxSizing="border-box",
                           borderRight="1px solid var(--Dash-Stroke-Weak, #dedede)")
 SIDEBAR_STYLE_COLLAPSED = dict(SIDEBAR_STYLE_OPEN, padding="12px 7px", overflowY="hidden")
 MAIN_STYLE = dict(padding="6px 10px",
-                  backgroundColor="var(--Dash-Fill-Inverse-Strong, white)",
+                  backgroundColor="var(--qa-page-bg, #f7f8fb)",
                   height="100vh", minHeight="0", minWidth="0", overflowY="auto",
                   overscrollBehaviorY="contain", overflowX="hidden", boxSizing="border-box")
 LABEL_STYLE = dict(fontWeight="600", fontSize="12px", marginTop="9px",
@@ -169,7 +177,7 @@ LABEL_STYLE = dict(fontWeight="600", fontSize="12px", marginTop="9px",
 DROPDOWN_STYLE = dict(width="100%", minWidth="0", fontSize="13px")
 INPUT_STYLE = dict(width="100%", boxSizing="border-box", padding="8px", borderRadius="8px",
                    border="1px solid var(--Dash-Stroke-Weak, #dedede)", fontSize="13px")
-PLOT_CARD_STYLE = dict(backgroundColor="var(--Dash-Fill-Inverse-Strong, white)",
+PLOT_CARD_STYLE = dict(backgroundColor="var(--qa-card-bg, white)",
                        border="1px solid var(--Dash-Stroke-Weak, #dedede)",
                        borderRadius="12px", padding="6px", overflow="hidden",
                        minWidth="0", width="100%", maxWidth="1450px", boxSizing="border-box")

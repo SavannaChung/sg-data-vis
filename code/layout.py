@@ -79,7 +79,16 @@ def app_layout(df, sigma_ref_df, direct_ref_df):
         html.Button("◀", id="toggle-sidebar", n_clicks=0, title="Hide/show filters",
                     className="collapse-toggle", type="button"),
         html.Div(id="sidebar-content", children=[
-            html.H2("Spot Grid QA", className="sidebar-title"),
+            html.Div(className="sidebar-heading-row", children=[
+                html.H2("Spot Grid QA", className="sidebar-title"),
+                dcc.RadioItems(
+                    id="theme-mode", options=[
+                        {"label": "Light", "value": "light"},
+                        {"label": "Dark", "value": "dark"},
+                    ], value="light", persistence=True,
+                    persistence_type="local", className="theme-mode-segments",
+                ),
+            ]),
             html.Div(className="filter-section", children=[
                 dropdown("QA type", "qa-type-dropdown",
                          flt.choices(cfg.QA_TYPES, cfg.QA_TYPES), qa_type, persist=True),
@@ -142,7 +151,7 @@ def app_layout(df, sigma_ref_df, direct_ref_df):
                             minimum_nights=0,
                             updatemode="bothdates",
                             number_of_months_shown=2,
-                            with_portal=False,
+                            with_portal=True,
                             clearable=False,
                             className="sidebar-date-range",
                         ),
@@ -162,4 +171,5 @@ def app_layout(df, sigma_ref_df, direct_ref_df):
             graph_panel("time"), graph_panel("matrix"),
         ]),
     ])
-    return html.Div(id="app-shell", style=cfg.APP_STYLE_OPEN, children=[sidebar, main])
+    return html.Div(id="app-shell", className="theme-light",
+                    style=cfg.APP_STYLE_OPEN, children=[sidebar, main])

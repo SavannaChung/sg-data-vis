@@ -102,3 +102,93 @@
   #sidebar .gantry-segments { gap: 5px; }
   #sidebar .chip-choice-group { gap: 6px; }
 }
+
+
+/* Light/dark styling for Dash 4 native controls, without additional libraries.
+   Accent is --qa-accent from constants.py (#636EFA, Plotly blue-violet). */
+#app-shell {
+  --qa-sidebar-bg: #ffffff;
+  --qa-page-bg: #f7f8fb;
+  --qa-card-bg: #ffffff;
+  --qa-text: #242424;
+  --Dash-Fill-Interactive-Strong: var(--qa-accent);
+  background: var(--qa-page-bg);
+  color: var(--qa-text);
+}
+#app-shell.theme-dark {
+  --qa-sidebar-bg: #171d29;
+  --qa-page-bg: #111722;
+  --qa-card-bg: #1c2330;
+  --qa-text: #e9eef9;
+  --Dash-Fill-Inverse-Strong: #1c2330;
+  --Dash-Stroke-Strong: #66758a;
+  --Dash-Stroke-Weak: #364254;
+  --Dash-Fill-Interactive-Strong: var(--qa-accent);
+  --Dash-Fill-Interactive-Weak: #303a59;
+  --Dash-Fill-Weak: #222c3a;
+  --Dash-Text-Primary: #e9eef9;
+  --Dash-Text-Strong: #ffffff;
+  --Dash-Text-Weak: #adb9ce;
+  --Dash-Text-Disabled: #8492a8;
+  --Dash-Fill-Primary-Hover: #2b3447;
+  --Dash-Fill-Primary-Active: #37445f;
+  --Dash-Fill-Disabled: #273244;
+  --Dash-Shading-Strong: rgba(0, 0, 0, 0.55);
+  --Dash-Shading-Weak: rgba(0, 0, 0, 0.28);
+}
+/* DatePickerRange may render its portal outside the app root.
+   Give that popup the same Dash 4 palette via the body. */
+body:has(#app-shell.theme-dark) {
+  background-color: #111722;
+  color: #e9eef9;
+  --Dash-Fill-Inverse-Strong: #1c2330;
+  --Dash-Stroke-Strong: #66758a;
+  --Dash-Stroke-Weak: #364254;
+  --Dash-Fill-Interactive-Strong: #636efa;
+  --Dash-Fill-Interactive-Weak: #303a59;
+  --Dash-Fill-Weak: #222c3a;
+  --Dash-Text-Primary: #e9eef9;
+  --Dash-Text-Strong: #ffffff;
+  --Dash-Text-Weak: #adb9ce;
+  --Dash-Text-Disabled: #8492a8;
+  --Dash-Fill-Primary-Hover: #2b3447;
+  --Dash-Fill-Primary-Active: #37445f;
+  --Dash-Shading-Strong: rgba(0,0,0,.55);
+  --Dash-Shading-Weak: rgba(0,0,0,.28);
+}
+/* Neutral readable foreground for active filter chips on either theme. */
+#sidebar .chip-choice-group label:has(input:checked),
+#sidebar .device-segments label:has(input:checked),
+#sidebar .gantry-segments label:has(input:checked),
+#sidebar .period-segments label:has(input:checked) {
+  color: #ffffff;
+}
+/* Keep the theme control compact beside the sidebar heading. */
+#sidebar .sidebar-heading-row {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 8px; margin: 12px 0 20px;
+}
+#sidebar .sidebar-heading-row .sidebar-title {
+  margin: 0; white-space: nowrap; font-size: 16px;
+}
+#sidebar .theme-mode-segments { display: flex; gap: 3px; flex-shrink: 0; }
+#sidebar .theme-mode-segments label {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 28px; padding: 4px 6px; border-radius: 6px;
+  font-size: 11px; cursor: pointer;
+  color: var(--Dash-Text-Primary, #242424);
+  background: var(--qa-card-bg, white);
+  border: 1px solid var(--Dash-Stroke-Weak, #dedede);
+}
+#sidebar .theme-mode-segments label:has(input:checked) {
+  background: var(--qa-accent, #636efa);
+  border-color: var(--qa-accent, #636efa);
+  color: #fff;
+}
+#sidebar .theme-mode-segments input {
+  position:absolute; width:1px; height:1px; opacity:0;
+}
+#sidebar .theme-mode-segments label:focus-within {
+  outline: 2px solid var(--qa-accent,#636efa);
+  outline-offset: 2px;
+}

@@ -76,9 +76,16 @@ def _selected_energies(values):
     return list(values) if isinstance(values, (list, tuple, set)) else [values]
 
 
-def _plot_component(fig, graph_id):
+def _plot_component(fig, graph_id, theme="light"):
     """Graph height follows the Plotly figure; no large blank fixed-height graph."""
     fig = _graph_or_blank(fig)
+    # Keep teammates' traces, layouts, heights and data intact: only change theme.
+    mode = theme if theme in cfg.THEME_TEMPLATES else "light"
+    palette = cfg.THEME_FIGURE_COLOURS[mode]
+    fig.update_layout(template=cfg.THEME_TEMPLATES[mode],
+                      paper_bgcolor=palette["paper"],
+                      plot_bgcolor=palette["plot"],
+                      font=dict(color=palette["text"]))
     height = fig.layout.height or cfg.PLOT_HEIGHT
     return dcc.Graph(id=graph_id, figure=fig,
                      config={"displaylogo": False, "responsive": True},
@@ -86,11 +93,15 @@ def _plot_component(fig, graph_id):
                      style={"width": "100%", "minWidth": "0", "height": f"{height}px"})
 
 
-def _blank_component(message, graph_id):
-    return [_plot_component(figs.blank_figure(message), graph_id)]
+def _blank_component(message, graph_id, theme="light"):
+    return [_plot_component(figs.blank_figure(message), graph_id, theme)]
 
 
 def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
+
+    @app.callback(Output("app-shell", "className"), Input("theme-mode", "value"))
+    def set_colour_theme(mode):
+        return "theme-dark" if mode == "dark" else "theme-light"
 
     @app.callback(Output("app-shell", "style"), Output("sidebar", "style"),
                   Output("sidebar-content", "style"), Output("toggle-sidebar", "children"),
@@ -207,22 +218,23 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                   Input("focus-ga-dropdown", "value"), Input("gantry-angle-dropdown", "value"),
                   Input("period-select", "value"),
                   Input("custom-date-range", "start_date"),
-                  Input("custom-date-range", "end_date"), Input("ref-source-dropdown", "value"))
+                  Input("custom-date-range", "end_date"), Input("ref-source-dropdown", "value"),
+                  Input("theme-mode", "value"))
     def plot_average_callback(plot_type, option, parameter, gantry, device,
-                              energies, ga, angles, period, date_start, date_end, source):
+                              energies, ga, angles, period, date_start, date_end, source, theme):
         if plot_type != "average":
             return no_update
         if not flt.plot_is_available(qa_df, option, "average", parameter):
-            return _blank_component("Selected average parameter is unavailable.", "average-empty")
+            return _blank_component("Selected average parameter is unavailable.", "average-empty", theme)
         selected = _selected_energies(energies)
         if not selected:
-            return _blank_component("Select at least one energy.", "average-empty")
+            return _blank_component("Select at least one energy.", "average-empty", theme)
         if not angles:
-            return _blank_component("Select at least one gantry angle.", "average-empty")
+            return _blank_component("Select at least one gantry angle.", "average-empty", theme)
         filtered = flt.filter_qa_data(qa_df, gantry=gantry, device=device,
                                       energies=selected, gantry_angles=angles, **_date_kwargs(period, date_start, date_end))
         if filtered.empty:
-            return _blank_component("No data for the selected filters.", "average-empty")
+            return _blank_component("No data for the selected filters.", "average-empty", theme)
         tolerance = (cfg.SPOT_POSITION_TOLERANCES.get(parameter)
                      if option == "spot_position" else None)
         if option == "fwhm" and source != "none":
@@ -232,7 +244,7 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
         figure = figs.plot_ave_spot_position_by_en_ga(
             filtered, option, parameter, gantry, device, selected,
             _safe_months(period), tolerance)
-        return [_plot_component(figure, "average-result")]
+        return [_plot_component(figure, "average-result", theme)]
 
     # Plot callback 2 -> collaborator's individual-spot function.
     @app.callback(Output("individual-graphs", "children"),
@@ -242,20 +254,21 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                   Input("focus-ga-dropdown", "value"), Input("period-select", "value"),
                   Input("custom-date-range", "start_date"),
                   Input("custom-date-range", "end_date"),
-                  Input("ref-source-dropdown", "value"))
+                  Input("ref-source-dropdown", "value"),
+                  Input("theme-mode", "value"))
     def plot_individual_callback(plot_type, option, parameter, gantry, device,
-                                 energies, ga, period, date_start, date_end, source):
+                                 energies, ga, period, date_start, date_end, source, theme):
         if plot_type != "individual":
             return no_update
         if not flt.plot_is_available(qa_df, option, "individual", parameter):
-            return _blank_component("Selected individual parameter is unavailable.", "individual-empty")
+            return _blank_component("Selected individual parameter is unavailable.", "individual-empty", theme)
         selected = _selected_energies(energies)
         if not selected:
-            return _blank_component("Select at least one energy.", "individual-empty")
+            return _blank_component("Select at least one energy.", "individual-empty", theme)
         filtered = flt.filter_qa_data(qa_df, gantry=gantry, device=device,
                                       energies=selected, gantry_angles=ga, **_date_kwargs(period, date_start, date_end))
         if filtered.empty:
-            return _blank_component("No data for the selected filters.", "individual-empty")
+            return _blank_component("No data for the selected filters.", "individual-empty", theme)
         tolerance = (cfg.SPOT_POSITION_TOLERANCES.get(parameter)
                      if option == "spot_position" else None)
         if option == "fwhm" and source != "none":
@@ -264,7 +277,7 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
         fig = figs.plot_by_spot_position(
             filtered, option, parameter, gantry, device, selected, ga,
             _safe_months(period), tolerance)
-        return [_plot_component(fig, "individual-result")]
+        return [_plot_component(fig, "individual-result", theme)]
 
     # Plot callback 3 -> collaborator's 2x2 time series.
     @app.callback(Output("time-graphs", "children"),
@@ -273,28 +286,29 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                   Input("energy-dropdown", "value"), Input("focus-ga-dropdown", "value"),
                   Input("period-select", "value"),
                   Input("custom-date-range", "start_date"),
-                  Input("custom-date-range", "end_date"), Input("ref-source-dropdown", "value"))
-    def plot_time_series_callback(plot_type, option, gantry, device, energies, ga, period, date_start, date_end, source):
+                  Input("custom-date-range", "end_date"), Input("ref-source-dropdown", "value"),
+                  Input("theme-mode", "value"))
+    def plot_time_series_callback(plot_type, option, gantry, device, energies, ga, period, date_start, date_end, source, theme):
         if plot_type != "time":
             return no_update
         if not flt.plot_is_available(qa_df, option, "time", None):
-            return _blank_component("This QA type or orientation data is unavailable for 2x2 plots.", "time-empty")
+            return _blank_component("This QA type or orientation data is unavailable for 2x2 plots.", "time-empty", theme)
         selected = _selected_energies(energies)
         if not selected:
-            return _blank_component("Select at least one energy.", "time-empty")
+            return _blank_component("Select at least one energy.", "time-empty", theme)
         filtered = flt.filter_qa_data(qa_df, gantry=gantry, device=device,
                                       energies=selected, gantry_angles=ga, **_date_kwargs(period, date_start, date_end))
         if filtered.empty:
-            return _blank_component("No data for the selected filters.", "time-empty")
+            return _blank_component("No data for the selected filters.", "time-empty", theme)
         raw = {column for pair in cfg.GRADIENT_PAIRS.values() for column in pair}
         if option == "spot_symmetry" and not raw.issubset(filtered.columns):
-            return _blank_component("Missing raw gradient columns.", "time-empty")
+            return _blank_component("Missing raw gradient columns.", "time-empty", theme)
         ref = sigma_ref_df if option == "fwhm" and source == "TPS" else None
         fig = figs.plotly_spot_time_series(
             filtered, option, gantry, device, selected, ga,
             n_months=_safe_months(period), ref_df=ref, ref_source="TPS",
             tol_frac=cfg.FWHM_TOL_FRAC)
-        return [_plot_component(fig, "time-result")]
+        return [_plot_component(fig, "time-result", theme)]
 
     # Plot callback 4 -> collaborator's multi-energy spot matrix.
     @app.callback(Output("matrix-graphs", "children"),
@@ -304,24 +318,25 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                   Input("gantry-angle-dropdown", "value"), Input("period-select", "value"),
                   Input("custom-date-range", "start_date"),
                   Input("custom-date-range", "end_date"),
-                  Input("ref-source-dropdown", "value"))
-    def plot_matrix_callback(plot_type, option, parameter, gantry, device, energies, angles, period, date_start, date_end, source):
+                  Input("ref-source-dropdown", "value"),
+                  Input("theme-mode", "value"))
+    def plot_matrix_callback(plot_type, option, parameter, gantry, device, energies, angles, period, date_start, date_end, source, theme):
         if plot_type != "matrix":
             return no_update
         if not flt.plot_is_available(qa_df, option, "matrix", parameter):
-            return _blank_component("Selected matrix parameter is unavailable.", "matrix-empty")
+            return _blank_component("Selected matrix parameter is unavailable.", "matrix-empty", theme)
         if not energies or not angles:
-            return _blank_component("Select at least one energy and gantry angle.", "matrix-empty")
+            return _blank_component("Select at least one energy and gantry angle.", "matrix-empty", theme)
         filtered = flt.filter_qa_data(qa_df, gantry=gantry, device=device,
                                       energies=energies, gantry_angles=angles, **_date_kwargs(period, date_start, date_end))
         if filtered.empty:
-            return _blank_component("No data for the selected filters.", "matrix-empty")
+            return _blank_component("No data for the selected filters.", "matrix-empty", theme)
         raw = {column for pair in cfg.GRADIENT_PAIRS.values() for column in pair}
         if option == "spot_symmetry" and not raw.issubset(filtered.columns):
-            return _blank_component("Missing raw gradient columns.", "matrix-empty")
+            return _blank_component("Missing raw gradient columns.", "matrix-empty", theme)
         ref = sigma_ref_df if option == "fwhm" and source == "TPS" else None
         fig = figs.plotly_spot_matrix(
             filtered, option, parameter, gantry, device,
             energy=energies, gantry_angle=angles, n_months=_safe_months(period),
             ref_df=ref, ref_source="TPS", tol_frac=cfg.FWHM_TOL_FRAC)
-        return [_plot_component(fig, "matrix-result")]
+        return [_plot_component(fig, "matrix-result", theme)]
