@@ -1,7 +1,7 @@
 """One plot callback for each teammate function, plus sidebar UI callbacks."""
 import re
 import pandas as pd
-from dash import Input, Output, State, dcc, html, no_update
+from dash import Input, Output, State, ctx, dcc, html, no_update
 import constants as cfg
 import figures as figs
 import filters as flt
@@ -48,6 +48,23 @@ def _safe_months(value):
     return value if 1 <= value <= 60 else cfg.DEFAULT_MONTHS
 
 
+def _date_kwargs(period, start_date, end_date):
+    """Convert sidebar preset/custom selection into filter-only date arguments."""
+    if period == "custom":
+        return {"start_date": start_date or "invalid", "end_date": end_date or "invalid"}
+    return {"months": _safe_months(period)}
+
+
+def _keep_multi(available, current):
+    """Keep user's deliberate Clear selection; remove now-unavailable values."""
+    if current == []:
+        return []
+    if current is None:
+        return available
+    kept = [v for v in current if v in available]
+    return kept if kept else available
+
+
 def _graph_or_blank(fig):
     return fig if fig is not None else figs.blank_figure("No data for the selected filters.")
 
@@ -82,6 +99,12 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
         if clicks and clicks % 2:
             return cfg.APP_STYLE_COLLAPSED, cfg.SIDEBAR_STYLE_COLLAPSED, {"display": "none"}, "▶"
         return cfg.APP_STYLE_OPEN, cfg.SIDEBAR_STYLE_OPEN, {"display": "block"}, "◀"
+
+    @app.callback(Output("custom-date-group", "style"),
+                  Input("period-select", "value"))
+    def toggle_custom_dates(period):
+        return (cfg.SIDEBAR_GROUP_VISIBLE if period == "custom"
+                else cfg.SIDEBAR_GROUP_HIDDEN)
 
     @app.callback(Output("plot-type-dropdown", "options"),
                   Output("plot-type-dropdown", "value"),
@@ -125,15 +148,23 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                   State("device-dropdown", "value"))
     def update_device_choices(gantry, current_device):
         values = flt.existing_values(qa_df, "Device", gantry=gantry)
-        return flt.choices(values), flt.select_preferred(values, current_device, preferred="XRV-3000")
+        return flt.device_choices(values), flt.select_preferred(values, current_device, preferred="XRV-3000")
 
     @app.callback(Output("energy-dropdown", "options"),
                   Output("energy-dropdown", "value"),
                   Input("gantry-dropdown", "value"), Input("device-dropdown", "value"),
+                  Input("energy-dropdown-all", "n_clicks"),
+                  Input("energy-dropdown-clear", "n_clicks"),
                   State("energy-dropdown", "value"))
-    def update_energy_choices(gantry, device, selected_energies):
-        values = flt.existing_values(qa_df, "Energy", gantry=gantry, device=device)
-        return flt.choices(values), flt.select_preferred(values, selected_energies, multi=True)
+    def update_energy_choices(gantry, device, all_clicks, clear_clicks, selected):
+        available = flt.existing_values(qa_df, "Energy", gantry=gantry, device=device)
+        if ctx.triggered_id == "energy-dropdown-all":
+            chosen = available
+        elif ctx.triggered_id == "energy-dropdown-clear":
+            chosen = []
+        else:
+            chosen = _keep_multi(available, selected)
+        return flt.choices(available), chosen
 
     @app.callback(Output("focus-ga-dropdown", "options"),
                   Output("focus-ga-dropdown", "value"),
@@ -141,13 +172,23 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                   Output("gantry-angle-dropdown", "value"),
                   Input("gantry-dropdown", "value"), Input("device-dropdown", "value"),
                   Input("energy-dropdown", "value"),
+                  Input("gantry-angle-dropdown-all", "n_clicks"),
+                  Input("gantry-angle-dropdown-clear", "n_clicks"),
                   State("focus-ga-dropdown", "value"),
                   State("gantry-angle-dropdown", "value"))
-    def update_ga_choices(gantry, device, energies, current_focus, current_multi):
+    def update_ga_choices(gantry, device, energies, all_clicks, clear_clicks,
+                          current_focus, current_multi):
+        # With no selected energy, still show available GA choices for recovery.
         available = flt.existing_values(qa_df, "Gantry Angle", gantry=gantry,
-                                        device=device, energies=energies or [])
+                                        device=device, energies=energies or None)
+        if ctx.triggered_id == "gantry-angle-dropdown-all":
+            multi = available
+        elif ctx.triggered_id == "gantry-angle-dropdown-clear":
+            multi = []
+        else:
+            multi = _keep_multi(available, current_multi)
         return (flt.choices(available), flt.select_preferred(available, current_focus, preferred=0),
-                flt.choices(available), flt.select_preferred(available, current_multi, multi=True))
+                flt.choices(available), multi)
 
     @app.callback(Output("average-panel", "style"),
                   Output("individual-panel", "style"),
@@ -164,9 +205,11 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                   Input("parameter-dropdown", "value"), Input("gantry-dropdown", "value"),
                   Input("device-dropdown", "value"), Input("energy-dropdown", "value"),
                   Input("focus-ga-dropdown", "value"), Input("gantry-angle-dropdown", "value"),
-                  Input("months-input", "value"), Input("ref-source-dropdown", "value"))
+                  Input("period-select", "value"),
+                  Input("custom-date-range", "start_date"),
+                  Input("custom-date-range", "end_date"), Input("ref-source-dropdown", "value"))
     def plot_average_callback(plot_type, option, parameter, gantry, device,
-                              energies, ga, angles, months, source):
+                              energies, ga, angles, period, date_start, date_end, source):
         if plot_type != "average":
             return no_update
         if not flt.plot_is_available(qa_df, option, "average", parameter):
@@ -177,7 +220,7 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
         if not angles:
             return _blank_component("Select at least one gantry angle.", "average-empty")
         filtered = flt.filter_qa_data(qa_df, gantry=gantry, device=device,
-                                      energies=selected, gantry_angles=angles, months=months)
+                                      energies=selected, gantry_angles=angles, **_date_kwargs(period, date_start, date_end))
         if filtered.empty:
             return _blank_component("No data for the selected filters.", "average-empty")
         tolerance = (cfg.SPOT_POSITION_TOLERANCES.get(parameter)
@@ -188,7 +231,7 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                          for e in selected for angle in angles}
         figure = figs.plot_ave_spot_position_by_en_ga(
             filtered, option, parameter, gantry, device, selected,
-            _safe_months(months), tolerance)
+            _safe_months(period), tolerance)
         return [_plot_component(figure, "average-result")]
 
     # Plot callback 2 -> collaborator's individual-spot function.
@@ -196,10 +239,12 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                   Input("plot-type-dropdown", "value"), Input("qa-type-dropdown", "value"),
                   Input("parameter-dropdown", "value"), Input("gantry-dropdown", "value"),
                   Input("device-dropdown", "value"), Input("energy-dropdown", "value"),
-                  Input("focus-ga-dropdown", "value"), Input("months-input", "value"),
+                  Input("focus-ga-dropdown", "value"), Input("period-select", "value"),
+                  Input("custom-date-range", "start_date"),
+                  Input("custom-date-range", "end_date"),
                   Input("ref-source-dropdown", "value"))
     def plot_individual_callback(plot_type, option, parameter, gantry, device,
-                                 energies, ga, months, source):
+                                 energies, ga, period, date_start, date_end, source):
         if plot_type != "individual":
             return no_update
         if not flt.plot_is_available(qa_df, option, "individual", parameter):
@@ -208,7 +253,7 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
         if not selected:
             return _blank_component("Select at least one energy.", "individual-empty")
         filtered = flt.filter_qa_data(qa_df, gantry=gantry, device=device,
-                                      energies=selected, gantry_angles=ga, months=months)
+                                      energies=selected, gantry_angles=ga, **_date_kwargs(period, date_start, date_end))
         if filtered.empty:
             return _blank_component("No data for the selected filters.", "individual-empty")
         tolerance = (cfg.SPOT_POSITION_TOLERANCES.get(parameter)
@@ -218,7 +263,7 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                                          sigma_ref_df, direct_ref_df) for e in selected}
         fig = figs.plot_by_spot_position(
             filtered, option, parameter, gantry, device, selected, ga,
-            _safe_months(months), tolerance)
+            _safe_months(period), tolerance)
         return [_plot_component(fig, "individual-result")]
 
     # Plot callback 3 -> collaborator's 2x2 time series.
@@ -226,8 +271,10 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                   Input("plot-type-dropdown", "value"), Input("qa-type-dropdown", "value"),
                   Input("gantry-dropdown", "value"), Input("device-dropdown", "value"),
                   Input("energy-dropdown", "value"), Input("focus-ga-dropdown", "value"),
-                  Input("months-input", "value"), Input("ref-source-dropdown", "value"))
-    def plot_time_series_callback(plot_type, option, gantry, device, energies, ga, months, source):
+                  Input("period-select", "value"),
+                  Input("custom-date-range", "start_date"),
+                  Input("custom-date-range", "end_date"), Input("ref-source-dropdown", "value"))
+    def plot_time_series_callback(plot_type, option, gantry, device, energies, ga, period, date_start, date_end, source):
         if plot_type != "time":
             return no_update
         if not flt.plot_is_available(qa_df, option, "time", None):
@@ -236,7 +283,7 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
         if not selected:
             return _blank_component("Select at least one energy.", "time-empty")
         filtered = flt.filter_qa_data(qa_df, gantry=gantry, device=device,
-                                      energies=selected, gantry_angles=ga, months=months)
+                                      energies=selected, gantry_angles=ga, **_date_kwargs(period, date_start, date_end))
         if filtered.empty:
             return _blank_component("No data for the selected filters.", "time-empty")
         raw = {column for pair in cfg.GRADIENT_PAIRS.values() for column in pair}
@@ -245,7 +292,7 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
         ref = sigma_ref_df if option == "fwhm" and source == "TPS" else None
         fig = figs.plotly_spot_time_series(
             filtered, option, gantry, device, selected, ga,
-            n_months=_safe_months(months), ref_df=ref, ref_source="TPS",
+            n_months=_safe_months(period), ref_df=ref, ref_source="TPS",
             tol_frac=cfg.FWHM_TOL_FRAC)
         return [_plot_component(fig, "time-result")]
 
@@ -254,9 +301,11 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
                   Input("plot-type-dropdown", "value"), Input("qa-type-dropdown", "value"),
                   Input("parameter-dropdown", "value"), Input("gantry-dropdown", "value"),
                   Input("device-dropdown", "value"), Input("energy-dropdown", "value"),
-                  Input("gantry-angle-dropdown", "value"), Input("months-input", "value"),
+                  Input("gantry-angle-dropdown", "value"), Input("period-select", "value"),
+                  Input("custom-date-range", "start_date"),
+                  Input("custom-date-range", "end_date"),
                   Input("ref-source-dropdown", "value"))
-    def plot_matrix_callback(plot_type, option, parameter, gantry, device, energies, angles, months, source):
+    def plot_matrix_callback(plot_type, option, parameter, gantry, device, energies, angles, period, date_start, date_end, source):
         if plot_type != "matrix":
             return no_update
         if not flt.plot_is_available(qa_df, option, "matrix", parameter):
@@ -264,7 +313,7 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
         if not energies or not angles:
             return _blank_component("Select at least one energy and gantry angle.", "matrix-empty")
         filtered = flt.filter_qa_data(qa_df, gantry=gantry, device=device,
-                                      energies=energies, gantry_angles=angles, months=months)
+                                      energies=energies, gantry_angles=angles, **_date_kwargs(period, date_start, date_end))
         if filtered.empty:
             return _blank_component("No data for the selected filters.", "matrix-empty")
         raw = {column for pair in cfg.GRADIENT_PAIRS.values() for column in pair}
@@ -273,6 +322,6 @@ def register_callbacks(app, qa_df, sigma_ref_df, direct_ref_df):
         ref = sigma_ref_df if option == "fwhm" and source == "TPS" else None
         fig = figs.plotly_spot_matrix(
             filtered, option, parameter, gantry, device,
-            energy=energies, gantry_angle=angles, n_months=_safe_months(months),
+            energy=energies, gantry_angle=angles, n_months=_safe_months(period),
             ref_df=ref, ref_source="TPS", tol_frac=cfg.FWHM_TOL_FRAC)
         return [_plot_component(fig, "matrix-result")]

@@ -144,28 +144,33 @@ SUBPLOT_HORIZONTAL_SPACING = 0.025
 SUBPLOT_VERTICAL_SPACING = {3: 0.06, 5: 0.04}
 TWO_BY_TWO_SPACING = dict(horizontal_spacing=0.08, vertical_spacing=0.13)
 
-# Dash styling.
-APP_STYLE_OPEN = dict(display="grid", gridTemplateColumns="260px minmax(0,1fr)",
+# Dash 4 native theme: do not override --Dash-* variables or force a custom palette.
+# Plot colours above remain separate scientific/plot conventions.
+APP_STYLE_OPEN = dict(display="grid", gridTemplateColumns="284px minmax(0,1fr)",
                       height="100vh", maxHeight="100vh", width="100%",
-                      minHeight="0", fontFamily="Arial,sans-serif", overflow="hidden")
+                      minHeight="0", fontFamily="system-ui, sans-serif", overflow="hidden")
 APP_STYLE_COLLAPSED = dict(APP_STYLE_OPEN, gridTemplateColumns="50px minmax(0,1fr)")
 # The sidebar and chart region scroll independently inside the fixed-height app shell.
-# A sticky sidebar inside a document-length grid can finish above the page bottom.
 SIDEBAR_STYLE_OPEN = dict(width="100%", minWidth="0", boxSizing="border-box",
-                          padding="12px", backgroundColor="#111824", color="#edf3fb",
+                          padding="16px",
+                          backgroundColor="var(--Dash-Fill-Inverse-Strong, white)",
+                          color="var(--Dash-Text-Primary, #242424)",
                           height="100vh", minHeight="0", overflowY="auto",
                           overscrollBehaviorY="contain", overflowX="hidden",
-                          scrollbarWidth="thin", borderRight="1px solid #26354b")
+                          scrollbarWidth="thin",
+                          borderRight="1px solid var(--Dash-Stroke-Weak, #dedede)")
 SIDEBAR_STYLE_COLLAPSED = dict(SIDEBAR_STYLE_OPEN, padding="12px 7px", overflowY="hidden")
-MAIN_STYLE = dict(padding="6px 10px", backgroundColor="#f7f9fc",
+MAIN_STYLE = dict(padding="6px 10px",
+                  backgroundColor="var(--Dash-Fill-Inverse-Strong, white)",
                   height="100vh", minHeight="0", minWidth="0", overflowY="auto",
                   overscrollBehaviorY="contain", overflowX="hidden", boxSizing="border-box")
 LABEL_STYLE = dict(fontWeight="600", fontSize="12px", marginTop="9px",
                    marginBottom="4px", display="block")
-DROPDOWN_STYLE = dict(width="100%", minWidth="0", fontSize="12px", color="#111")
+DROPDOWN_STYLE = dict(width="100%", minWidth="0", fontSize="13px")
 INPUT_STYLE = dict(width="100%", boxSizing="border-box", padding="8px", borderRadius="8px",
-                   border="1px solid #34465f", fontSize="12px")
-PLOT_CARD_STYLE = dict(backgroundColor="white", border="1px solid #d8dee9",
+                   border="1px solid var(--Dash-Stroke-Weak, #dedede)", fontSize="13px")
+PLOT_CARD_STYLE = dict(backgroundColor="var(--Dash-Fill-Inverse-Strong, white)",
+                       border="1px solid var(--Dash-Stroke-Weak, #dedede)",
                        borderRadius="12px", padding="6px", overflow="hidden",
                        minWidth="0", width="100%", maxWidth="1450px", boxSizing="border-box")
 GRAPH_STYLE = dict(height="78vh", minHeight="580px", width="100%", minWidth="0")
@@ -214,3 +219,6 @@ GRAPH_PANEL_HIDDEN = {"display": "none"}
 GRAPH_PANEL_VISIBLE = {"display": "block"}
 SIDEBAR_GROUP_VISIBLE = {"display": "block"}
 SIDEBAR_GROUP_HIDDEN = {"display": "none"}
+
+# Time period choices for the sidebar (values are months, except "custom").
+DATE_PRESETS = {"6": "6m", "12": "12m", "24": "24m", "custom": "Custom"}

@@ -1,0 +1,104 @@
+/* Layout only. Dash 4 supplies its own default colours and accessible controls.
+   No :root --Dash-* overrides, and no old .Select-* / .CalendarDay-* hacks. */
+#sidebar {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+}
+#sidebar *, #sidebar *::before, #sidebar *::after { box-sizing: border-box; }
+#sidebar-content { padding-bottom: 30px; }
+#sidebar .sidebar-title { font-size: 18px; font-weight: 700; margin: 14px 0 23px; }
+#sidebar .sidebar-divider {
+  border: 0;
+  border-top: 1px solid var(--Dash-Stroke-Weak, #dedede);
+  margin: 26px 0 25px;
+}
+#sidebar .filter-field { margin-top: 22px; min-width: 0; }
+#sidebar .filter-section > .filter-field:first-child { margin-top: 0; }
+#sidebar .filter-label {
+  display: block; margin: 0 0 10px;
+  font-size: 12px; font-weight: 600;
+}
+#sidebar .filter-heading {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; min-height: 28px; margin-bottom: 12px;
+}
+#sidebar .filter-heading .filter-label { margin: 0; }
+#sidebar .selection-actions { display: flex; gap: 7px; flex-shrink: 0; }
+#sidebar .mini-action, #sidebar .collapse-toggle {
+  cursor: pointer;
+  font: inherit;
+  color: var(--Dash-Text-Primary, ButtonText);
+  background: var(--Dash-Fill-Inverse-Strong, ButtonFace);
+  border: 1px solid var(--Dash-Stroke-Weak, ButtonBorder);
+  border-radius: 7px;
+}
+#sidebar .mini-action { min-height: 28px; padding: 4px 9px; font-size: 12px; }
+#sidebar .collapse-toggle {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; font-size: 14px;
+}
+#sidebar .mini-action:hover, #sidebar .collapse-toggle:hover {
+  background: var(--Dash-Fill-Interactive-Weak, ButtonFace);
+}
+/* Preserve the button-style choices already requested, but use Dash's
+   native accent and neutrals instead of maintaining a second palette. */
+#sidebar .chip-choice-group { display: flex; gap: 8px; flex-wrap: wrap; }
+#sidebar .device-segments, #sidebar .period-segments { display: flex; gap: 8px; width: 100%; }
+#sidebar .gantry-segments { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; }
+#sidebar .chip-choice-group label,
+#sidebar .device-segments label,
+#sidebar .gantry-segments label,
+#sidebar .period-segments label {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 41px; padding: 9px 8px;
+  border: 1px solid var(--Dash-Stroke-Weak, ButtonBorder);
+  border-radius: 7px;
+  background: var(--Dash-Fill-Inverse-Strong, ButtonFace);
+  color: var(--Dash-Text-Primary, ButtonText);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; user-select: none;
+}
+#sidebar .chip-choice-group label { min-width: 39px; }
+#sidebar .gantry-segments label { min-height: 46px; font-size: 14px; font-weight: 600; }
+#sidebar .device-segments label, #sidebar .period-segments label { flex: 1; min-width: 0; }
+#sidebar .period-segments label { font-size: 12px; white-space: nowrap; padding: 9px 2px; }
+#sidebar .chip-choice-group label:hover,
+#sidebar .device-segments label:hover,
+#sidebar .gantry-segments label:hover,
+#sidebar .period-segments label:hover {
+  background: var(--Dash-Fill-Interactive-Weak, ButtonFace);
+}
+#sidebar .chip-choice-group label:has(input:checked),
+#sidebar .device-segments label:has(input:checked),
+#sidebar .gantry-segments label:has(input:checked),
+#sidebar .period-segments label:has(input:checked) {
+  background: var(--Dash-Fill-Interactive-Strong, Highlight);
+  border-color: var(--Dash-Fill-Interactive-Strong, Highlight);
+  color: var(--Dash-Fill-Inverse-Strong, HighlightText);
+}
+#sidebar .chip-choice-group label:focus-within,
+#sidebar .device-segments label:focus-within,
+#sidebar .gantry-segments label:focus-within,
+#sidebar .period-segments label:focus-within,
+#sidebar .mini-action:focus-visible, #sidebar .collapse-toggle:focus-visible {
+  outline: 2px solid var(--Dash-Fill-Interactive-Strong, Highlight);
+  outline-offset: 2px;
+}
+#sidebar .chip-choice-group input,
+#sidebar .device-segments input,
+#sidebar .gantry-segments input,
+#sidebar .period-segments input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+/* Leave native Dash 4 dropdown/date-picker interiors and calendar popup alone. */
+#sidebar .sidebar-dropdown, #sidebar .date-range-field,
+#sidebar .sidebar-date-range { width: 100%; min-width: 0; }
+#sidebar .date-range-field { margin-top: 12px; }
+#sidebar .date-range-labels {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 14px; margin-bottom: 7px;
+  font-size: 12px; font-weight: 600;
+}
+@media (max-width: 680px) {
+  #sidebar .gantry-segments { gap: 5px; }
+  #sidebar .chip-choice-group { gap: 6px; }
+}

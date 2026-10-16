@@ -15,6 +15,20 @@ def choices(values, labels=None):
             for v in values]
 
 
+
+
+def gantry_choices(gantries):
+    """Short button labels from available gantries, without fixing their count."""
+    return [{"label": f"G{str(g).rsplit(' ', 1)[-1]}" if str(g).startswith("Gantry ")
+             else str(g), "value": g} for g in gantries]
+
+
+def device_choices(devices):
+    """Segment labels are derived from the workbook, not hardcoded device options."""
+    return [{"label": (str(d).removeprefix("XRV-") if str(d).startswith("XRV-")
+                       else str(d)), "value": d} for d in devices]
+
+
 def valid_plots(qa_type):
     return choices(cfg.SUPPORTED_PLOTS.get(qa_type, ()), cfg.PLOT_TYPES)
 
@@ -99,27 +113,39 @@ def select_preferred(values, current=None, preferred=None, multi=False):
     return values[0]
 
 
-def filter_qa_data(df, *, gantry, device, months, energies=None, gantry_angles=None):
-    """Apply all shared row filters once, before invoking a plot function."""
+def filter_qa_data(df, *, gantry, device, months=None, energies=None,
+                   gantry_angles=None, start_date=None, end_date=None):
+    """Select real QA measurements, including an inclusive custom end date.
+
+    Presets use the previous N calendar months; a custom range is inclusive of
+    both days, including measurements with an afternoon/evening timestamp.
+    No date filtering is performed later in the plotting functions.
+    """
     if not gantry or not device:
         return df.iloc[0:0].copy()
-    try:
-        months = int(months)
-    except (TypeError, ValueError):
-        months = cfg.DEFAULT_MONTHS
-    if months < 1 or months > 60:
-        months = cfg.DEFAULT_MONTHS
+    mask = df["MachineName"].eq(gantry) & df["Device"].eq(device)
 
-    start = pd.Timestamp.today() - pd.DateOffset(months=months)
-    mask = (df["MachineName"].eq(gantry) &
-            df["Device"].eq(device) &
-            df["ADate"].ge(start))
+    if start_date is not None or end_date is not None:
+        start = pd.to_datetime(start_date, errors="coerce")
+        end = pd.to_datetime(end_date, errors="coerce")
+        if pd.isna(start) or pd.isna(end) or start > end:
+            return df.iloc[0:0].copy()
+        mask &= df["ADate"].ge(start) & df["ADate"].lt(end.normalize() + pd.Timedelta(days=1))
+    else:
+        try:
+            months = int(months)
+        except (TypeError, ValueError):
+            months = cfg.DEFAULT_MONTHS
+        if months < 1 or months > 60:
+            months = cfg.DEFAULT_MONTHS
+        start = pd.Timestamp.today() - pd.DateOffset(months=months)
+        mask &= df["ADate"].ge(start)
+
     if energies is not None:
-        if not isinstance(energies, (list, tuple, set)):
-            energies = [energies]
+        energies = energies if isinstance(energies, (list, tuple, set)) else [energies]
         mask &= df["Energy"].isin(energies)
     if gantry_angles is not None:
-        if not isinstance(gantry_angles, (list, tuple, set)):
-            gantry_angles = [gantry_angles]
+        gantry_angles = (gantry_angles if isinstance(gantry_angles, (list, tuple, set))
+                         else [gantry_angles])
         mask &= df["Gantry Angle"].isin(gantry_angles)
     return df.loc[mask].copy()
